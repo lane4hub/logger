@@ -5,18 +5,19 @@ Jardis Logger is a PSR-3 extended **flexible and customizable logging system** f
 
 ---
 
-**Logger** is a very powerful and flexible PHP library that supports the logging of messages in a context-based system.
+**Logger** is a highly powerful and flexible PHP library that supports the logging of messages in a context-based system.
 
-Log data structures can be customized freely, logging handlers and specific formatters can be added to individually design and format log messages.
+Datalog structures can be customized freely, logging handlers and specific formatters can be added to tailor and format log messages individually.
 
 ## Features
 
-- **Log Levels:** Supports all common levels (Debug, Info, Notice, Warning, Error, Critical, Alert, Emergency).
-- **Context-Based Logging:** Each logger instance can be created with a specific context, enabling a clearly structured log output – ideal for modeling in **Domain-Driven Design** systems.
-- **Customizable Logging Handlers:** Use any implementation of `LogCommandInterface` to tailor the logging logic to your needs.
-- **Customizable Log Data:** Extend the log output data per log level as needed.
-- **Output Formatters:** Ensure logs can be individually formatted before output.
-- **Log History:** Retrieve a limited log history per log level as required.
+- **Logging Levels:** Supports all common levels (Debug, Info, Notice, Warning, Error, Critical, Alert, Emergency).
+- **Context-Based Logging:** Each logger instance can be created with a specific context, enabling clearly structured log output – ideal for modeling in **Domain-Driven Design** systems.
+- **Customizable Logging Handlers:** Use `LogCommandInterface` for your own implementations to adapt the logging logic to your needs.
+- **Customizable Log Record Format:** Extend the columns for log output per LogLevel as needed.
+- **Customizable Log User Format:** Extend user data output in logs per LogLevel as required.
+- **Formatter for Output:** Use the provided formatters, extend them, or create your own formatter.
+- **Log History:** Retrieve a limited number of log histories per log level as needed.
 
 ## Available Logger Commands
 - LogConsole
@@ -28,37 +29,49 @@ Log data structures can be customized freely, logging handlers and specific form
 - LogSlack
 - LogStash
 - LogNull
-- *... extendable as needed!*
+- *... extendable as per your requirements!*
 
 ## Available Log Data Formats
-- LogData (Default with Context, Log Level, and Message)
-  - LogDateTime
-  - LogClientIp
-  - LogMemoryUsage
-  - LogMemoryPeak
-  - LogUuid
-  - LogWebRequest
-  - *... extendable as needed!*
+- LogData Record
+  - context (default)
+  - loglevel (default)
+  - message (default)
+  - data (default)
+
+These columns can be expanded as desired.
+Log extensions, scalar types, arrays, or callables can be used for population.
+
+For logging into an RDBMS, the columns must be appropriately created.
+
+## Available Extensions for Expanding Log Information
+- LogDateTime
+- LogClientIp
+- LogMemoryUsage
+- LogMemoryPeak
+- LogUuid
+- LogWebRequest
+- *... extendable as per your requirements!*
+
+These log extensions can also be used to populate the default `data` field.
 
 ## Available Logger Output Formats
 - LogLineFormat
 - LogJsonFormat
 - LogHumanFormat
-- *... extendable as needed!*
+- *... extendable as per your requirements!*
 
 ---
 
-## Using Jardis Logger
+## Using the Jardis Logger
 
-### Example: Creating a Logger with Two Log Commands
+### Example Code to Create a Logger with Two Log Commands
 
-A logger requires an explicit context (e.g., the name of a specific domain, component, or application) and at least one handler to process log messages.
+A logger requires an explicit context (e.g., the name of a specific domain, component, or application) and at least one handler that processes the log messages.
 
 ```php
 use Jardis\Logger\Logger;
 use Jardis\Logger\command\LogFile;
 use Jardis\Logger\command\LogConsole;
-use Jardis\Logger\command\LoggerInterface;
 use Psr\Log\LogLevel;
 
 $logger = new Logger('myDomain');
@@ -66,25 +79,24 @@ $logger->addHandler(new LogConsole(LogLevel::LOG_INFO));
 $logger->addHandler(new LogFile(LogLevel::LOG_DEBUG, 'pathToLogFile'));
 ```
 
-### Example: Logging Messages
+### Example Code for Using the Logger
 
 ```php
-$logger->debug('This is a debug message', ['extra' => 'Debug data']);
+$logger->debug('This is a debug message', ['extra' => 'debug data']);
 $logger->info('This is an info message');
-$logger->error('An error occurred!', ['details' => 'Error details']);
+$logger->error('An error occurred!', ['details' => 'error details']);
 ```
 
-### Example: Extending Log Output Data
+### Example Code for Expanding Data Output
 
-Formatters are used to format log messages before output. For example, logs can be output in JSON format.
+Formatters serve to format log messages differently before output. For example, logs can be output in JSON format.
 
-By default, a text logger is used.
+By default, the `LogLineFormat` is used.
 
 ```php
-use Jardis\Logger\command\LogConsole;
-use Jardis\Logger\command\LoggerInterface;
 use Jardis\Logger\Logger;
-use Jardis\Logger\service\format\LogJsonFormat;
+use Jardis\Logger\command\LogConsole;
+use Jardis\Logger\servic\format\LogJsonFormat;
 use Psr\Log\LogLevel;
 
 $logger = new Logger('myDomain');
@@ -92,32 +104,78 @@ $logger = new Logger('myDomain');
 $logConsole = (new LogConsole(LogLevel::LOG_INFO, 'pathToFile'))->setFormat(new LogJsonFormat());
 $logger->addHandler($logConsole);
 
-$logger->info('This will now be output in JSON format!', ['details' => 'info']);
+$logger->info('This is now logged in JSON format!', ['details' => 'info']);
 ```
 
-### Example: Changing an Output Formatter per Log Command and Extending Log Data (Optional)
+### Example Code for Expanding User Data in Logs
 
-Formatters are used to format log messages before output. For example, logs can be output in JSON format.
-
-By default, a text logger is used.
+In this example, data is added to the `data` field in the log record.
 
 ```php
 use Jardis\Logger\command\LogFile;
-use Jardis\Logger\command\LogSlack;
-use Jardis\Logger\command\LoggerInterface;
-use Jardis\Logger\service\format\LogJsonFormat;
-use Jardis\Logger\service\format\LogHumanFormat;
-use Jardis\Logger\service\logData\LogWebRequestData;
+use \Jardis\Logger\service\logData\LogClientIp;
 use Jardis\Logger\Logger;
 use Psr\Log\LogLevel;
 
 $logger = new Logger('myDomain');
 
-$logFile = (new LogFile(LogLevel::LOG_INFO, 'pathToFile'))->setFormat(new LogJsonFormat());
-$logSlack = (new LogSlack(LogLevel::LOG_ERROR, 'webHookUrl'))->setFormat(new LogHumanFormat());
+$logFile = (new LogFile(LogLevel::LOG_INFO, 'pathToFile'));
+$logFile->logData()
+    ->addUserLogData('client_ip', new LogClientIp())
+    ->addUserLogData('test', fn() => 'value')
+    ->addUserLogData('test', 'scalar value');
+
 $logger->addHandler($logFile);
-$logger->addHandler($logSlack);
-$logger->addLogData(LogLevel::LOG_ERROR, new LogWebRequestData());
+```
+
+### Example Code for Expanding Log Record Data Columns
+
+In this example, data is added as a new column in the log record.
+
+```php
+use Jardis\Logger\command\LogFile;
+use \Jardis\Logger\service\logData\LogClientIp;
+use Jardis\Logger\Logger;
+use Psr\Log\LogLevel;
+
+$logger = new Logger('myDomain');
+
+$logFile = (new LogFile(LogLevel::LOG_INFO, 'pathToFile'));
+$logFile->logData()
+    ->addLogData('client_ip', new LogClientIp())
+    ->addLogData('test', fn() => 'value')
+    ->addLogData('test', 'scalar value');
+
+$logger->addHandler($logFile);
+```
+
+**If you want to use LogDatabase, you must first create the corresponding table in your database.**
+
+```sql
+CREATE TABLE logContextData (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    context TEXT NOT NULL,
+    level VARCHAR(100) NOT NULL,
+    content TEXT NOT NULL,
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+**You can optionally rename the predefined table and/or add additional fields.**
+
+### Example Code for Using LogDatabase with Default Structure
+
+```php
+use Jardis\Logger\Logger;
+use Jardis\Logger\command\LogDatabase;
+use Psr\Log\LogLevel;
+
+$logger = new Logger('myDomain');
+
+$logDatabase = (new LogDatabase(LogLevel::LOG_INFO, $yourPDO));
+$logger->addHandler($logDatabase);
+
+$logger->info('Log into database', ['details' => 'data']);
 ```
 
 ---
@@ -137,44 +195,32 @@ git clone https://github.com/lane4hub/logger.git
 cd logger
 ```
 
-**If you want to use LogDatabase, you must first create a corresponding table in your database.**
-
-```sql
-CREATE TABLE logContextData (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    context TEXT NOT NULL,
-    level VARCHAR(100) NOT NULL,
-    content TEXT NOT NULL,
-    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-```
-
 ---
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE). For more details, see the license file.
+This project is licensed under the [MIT License](LICENSE). See the license file for more details.
 
 ---
 
 ## Jardis Framework
 
-This tool is part of the development of our **Domain-Driven Design Framework** `Jardis` (Just a reliable domain integration system).
+This tool is part of the development of our Domain-Driven Design framework `Jardis` (Just a reliable domain integration system).
 
-`Jardis` consists of a collection of highly professional PHP software packages explicitly developed for efficient and sustainable solutions for complex business applications.
+`Jardis` consists of a collection of highly professional PHP software packages developed specifically for efficiently and sustainably solving complex business applications.
 
-Our development is based on defined standards such as DDD and PSR, aiming to deliver the highest possible quality for functional and non-functional requirements.
+Our development is based on defined standards such as DDD and PSR, with the goal of delivering the highest possible quality of functional and non-functional requirements.
 
-To ensure technical quality, we use PhpStan Level 8, PhpCS, and generate full test coverage with PhpUnit.
+To ensure technical quality, we use PhpStan Level 8, PhpCS, and achieve full test coverage with PhpUnit.
 
-Our software packages fulfill the following quality attributes:
+Our software packages meet the following quality attributes:
 - Analyzability
 - Adaptability
-- Extensibility
+- Expandability
 - Modularity
 - Maintainability
 - Testability
 - Scalability
-- High Performance
+- High performance
 
 Enjoy using it!
