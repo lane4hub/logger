@@ -13,10 +13,11 @@ Es können Strukturen von Datalogs beliebig angepasst werden, Protokollierungs-H
 
 - **Protokollstufen:** Unterstützt alle gängigen Stufen (Debug, Info, Notice, Warning, Error, Critical, Alert, Emergency).
 - **Kontextbasiertes Logging:** Jede Logger-Instanz kann mit einem spezifischen Kontext erstellt werden, was eine klar strukturierte Log-Ausgabe ermöglicht – ideal für die Modellierung in Systemen nach **Domain-Driven Design**.
-- **Anpassbare Protokollierungs-Handler:** Nutzen Sie beliebige Implementierungen von `LogCommandInterface`, um die Protokollierungslogik an Ihre Bedürfnisse anzupassen.
-- **Anpassbare Log Datal:** Erweitere nach Deine Wünschen die Daten für die Ausgabe in die Logs je LogLevel.
-- **Formatter für die Ausgabe:** Stelle sicher, dass Protokolle vor der Ausgabe individuell formatiert werden können
-- **Log History:** Lass dir auf Wunsch eine begrenzbare Log History je Log-Level zurückliefern.
+- **Anpassbare Protokollierungs-Handler:** Nutze für eigene beliebige Implementierungen `LogCommandInterface`, um die Protokollierungslogik an Ihre Bedürfnisse anzupassen.
+- **Anpassbares Log Record Format:** Erweitere nach Deinen Wünschen die Spalten für die Ausgabe in die Logs je LogLevel.
+- **Anpassbare Log User Format:** Erweitere nach Deinen Wünschen die Daten für die User Ausgabe in die Logs je LogLevel.
+- **Formatter für die Ausgabe:** Nutze die gelieferten Formatter, erweitere diese oder erstelle deinen eigenen Formatter
+- **Log History:** Lass dir auf Wunsch eine begrenzbare Anzahl einer Log History je Log-Level zurückliefern.
 
 ## Vorhandene Logger Commands
 - LogConsole
@@ -31,7 +32,18 @@ Es können Strukturen von Datalogs beliebig angepasst werden, Protokollierungs-H
 - *... erweiterbar nach deinen Wünschen!*
 
 ## Vorhandene Log Data Formate
-- LogData (Standard mit Context, Loglevel und Message)
+- LogData Record 
+  - context (Standard)
+  - loglevel (Standard)
+  - message (Standard)
+  - data ((Standard))
+
+Diese Spalten lassen sich nach eigenen Wünschen beliebig erweitern. 
+Zum befüllen können Log Extensions, scalare Typen, Array oder callables eingesetzt werden. 
+
+Für ein Logging in ein RDBMS müssen die Spalten entsprechend angelegt werden.
+
+## Vorhandene Extensions zur Erweiterung er Log Informationen
   - LogDateTime
   - LogClientIp
   - LogMemoryUsage
@@ -39,6 +51,8 @@ Es können Strukturen von Datalogs beliebig angepasst werden, Protokollierungs-H
   - LogUuid
   - LogWebRequest
   - *... erweiterbar nach deinen Wünschen!*
+
+Diese Log Extensions können auch zum befüllen des Standardfeldes `data` genutzt werden.
 
 ## Vorhandene Logger Output Formate
 - LogLineFormat
@@ -57,7 +71,6 @@ Ein Logger benötigt bei seiner Erstellung einen expliziten Kontext (z. B. den N
 use Jardis\Logger\Logger;
 use Jardis\Logger\command\LogFile;
 use Jardis\Logger\command\LogConsole;
-use Jardis\Logger\command\LoggerInterface;
 use Psr\Log\LogLevel;
 
 $logger = new Logger('myDomain');
@@ -65,7 +78,7 @@ $logger->addHandler(new LogConsole(LogLevel::LOG_INFO))
 $logger->addHandler(new LogFile(LogLevel::LOG_DEBUG, 'pathToLogFile'))
 ```
 
-### Beispielcode  zur Protokollierung
+### Beispielcode zur Verwendung des Loggers
 
 ```php
 $logger->debug('Dies ist eine Debug-Nachricht', ['extra' => 'Debug-Daten']);
@@ -77,12 +90,11 @@ $logger->error('Ein Fehler ist aufgetreten!', ['details' => 'Fehlerdetails']);
 
 Formatter dienen dazu, die Log-Nachrichten vor der Ausgabe unterschiedlich zu formatieren. Beispielsweise können Logs im JSON-Format ausgegeben werden.
 
-Per Default wir ein TextLogger verwendet.
+Per Default wir der LogLineFormat verwendet.
 
 ```php
-use Jardis\Logger\command\LogConsole;
-use Jardis\Logger\command\LoggerInterface;
 use Jardis\Logger\Logger;
+use Jardis\Logger\command\LogConsole;
 use Jardis\Logger\service\format\LogJsonFormat;
 use Psr\Log\LogLevel;
 
@@ -91,49 +103,49 @@ $logger = new Logger('myDomain');
 $logConsole = (new LogConsole(LogLevel::LOG_INFO, 'pathToFile'))->setFormat(new LogJsonFormat());
 $logger->addHandler($logConsole)
 
-$logger->info('Das wird nun im JsonFormat ausgegeben!', ['details' => 'infos']);
+$logger->info('Das wird nun im JsonFormat gelogged!', ['details' => 'infos']);
 ```
 
-### Beispielcode zum Austausch eines Output-Formatters je LogCommand und ERweiterung der Datenausgabe (Optional)
+### Beispielcode zur Erweiterung der Datenausgabe für User Data 
 
-Formatter dienen dazu, die Log-Nachrichten vor der Ausgabe unterschiedlich zu formatieren. Beispielsweise können Logs im JSON-Format ausgegeben werden.
-
-Per Default wir ein TextLogger verwendet.
+In dem hier gezeigten Beispiel werden die Daten im Log Record zum Feld `data` hinzugefügt.
 
 ```php
 use Jardis\Logger\command\LogFile;
-use Jardis\Logger\command\LogSlack;
-use Jardis\Logger\command\LoggerInterface;
-use Jardis\Logger\service\format\LogJsonFormat;
-use Jardis\Logger\service\format\LogHumanFormat;
-use \Jardis\Logger\service\logData\LogWebRequestData;
+use \Jardis\Logger\service\logData\LogClientIp;
 use Jardis\Logger\Logger;
 use Psr\Log\LogLevel;
 
 $logger = new Logger('myDomain');
 
-$logFile = (new LogFile(LogLevel::LOG_INFO, 'pathToFile'))->setFormat(new LogJsonFormat());
-$logSlack = (new LogSlack(LogLevel::LOG_ERROR,'webHookUrl'))->setFormat(new LogHumanFormat());
+$logFile = (new LogFile(LogLevel::LOG_INFO, 'pathToFile'));
+$logFile->logData()
+    ->addUserLogData('client_ip' => new LogClientIp())
+    ->addUserLogData('test' => fn() => 'value')
+    ->addUserLogData('test' => 'scalar value');
+
 $logger->addHandler($logFile);
-$logger->addHandler($logSlack);
-$logger->addLogData(LogLevel::LOG_ERROR, new LogWebRequestData());
 ```
 
----
+### Beispielcode zur Erweiterung der Datenausgabe Daten Spalten (Log Record) 
 
-## Quickstart mit Composer
+In dem hier gezeigten Beispiel werden die Daten als neue Spalte im Log Record hinzugefügt.
 
-Installieren Sie das Paket über Composer:
+```php
+use Jardis\Logger\command\LogFile;
+use \Jardis\Logger\service\logData\LogClientIp;
+use Jardis\Logger\Logger;
+use Psr\Log\LogLevel;
 
-```sh
-composer require lane4hub/logger
-```
+$logger = new Logger('myDomain');
 
-## Quickstart github
+$logFile = (new LogFile(LogLevel::LOG_INFO, 'pathToFile'));
+$logFile->logData()
+    ->addLogData('client_ip' => new LogClientIp())
+    ->addLogData('test' => fn() => 'value')
+    ->addLogData('test' => 'scalar value');
 
-```sh
-git clone https://github.com/lane4hub/logger.git
-cd logger
+$logger->addHandler($logFile);
 ```
 
 **Wenn du LogDatabase benutzen willst, dann musst du vorher eine entsprechende Tabelle in deiner Detenbank erzeugen.**
@@ -183,8 +195,25 @@ $logDatabase->logData()->addUserLogData('addUserField', fn() => 'userContent');
 $logger->addHandler($logDatabase)
 ```
 
+---
+
+## Quickstart mit Composer
+
+Installieren Sie das Paket über Composer:
+
+```sh
+composer require lane4hub/logger
+```
+
+## Quickstart github
+
+```sh
+git clone https://github.com/lane4hub/logger.git
+cd logger
+```
 
 ---
+
 
 ## Architektur
 
