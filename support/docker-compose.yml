@@ -1,0 +1,5 @@
+services:
+  phpcli:
+    image: lane4hub/phpcli:${PHP_VERSION}
+    volumes:
+        - '.././:/app'
